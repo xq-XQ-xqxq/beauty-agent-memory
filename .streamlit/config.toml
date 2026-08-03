@@ -1,0 +1,14 @@
+[theme]
+primaryColor = "#8E3A59"
+backgroundColor = "#FFFDFC"
+secondaryBackgroundColor = "#F7EFF2"
+textColor = "#2F2529"
+baseRadius = "large"
+buttonRadius = "full"
+
+[server]
+headless = true
+runOnSave = true
+
+[browser]
+gatherUsageStats = false
