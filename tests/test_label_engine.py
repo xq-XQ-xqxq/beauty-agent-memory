@@ -164,3 +164,56 @@ def test_second_mapping_filters_inference_and_direct_disposal_advice():
 
     assert insight.labels == ()
     assert insight.service_suggestions == ()
+
+
+def test_agent_mode_generates_insight(monkeypatch):
+    """回归测试：Agent 模式路径曾因漏调 summarize_if_needed 抛 NameError。"""
+
+    captured: dict = {}
+
+    class FakeAgent:
+        def __init__(self, registry, user_id, client, model, trace_store):
+            captured["user_id"] = user_id
+
+        def run(self, messages, memories, conversation_summary=None):
+            captured["messages"] = messages
+            captured["summary"] = conversation_summary
+            return SimpleNamespace(
+                raw_insight={
+                    "service_focus": "用户反馈面膜使用后泛红",
+                    "labels": [
+                        {
+                            "title": "泛红不适",
+                            "content": "用户使用面膜后泛红",
+                            "priority": "urgent",
+                            "source_ids": ["msg_1"],
+                        }
+                    ],
+                    "service_suggestions": [],
+                },
+                tool_calls=0,
+                tool_trace=[],
+                total_latency_ms=123,
+                token_usage={"total_tokens": 0},
+                run_id="run_test",
+                forced_finalization=False,
+            )
+
+    monkeypatch.setattr("tool_calling_agent.ToolCallingAgent", FakeAgent)
+    monkeypatch.setattr("tool_registry.build_default_registry", lambda: object())
+    monkeypatch.setattr("agent_trace_store.AgentTraceStore", lambda: object())
+
+    generator = ServiceInsightGenerator(
+        client=FakeClient({}), use_agent_mode=True, user_id="u_test"
+    )
+    insight = generator.generate(
+        [{"role": "user", "content": "用了面膜后泛红发痒"}],
+        [],
+    )
+
+    assert insight.service_focus == "用户反馈面膜使用后泛红"
+    assert insight.labels[0].title == "泛红不适"
+    assert insight.labels[0].source_ids == ("msg_1",)
+    assert insight.agent_mode is True
+    assert captured["user_id"] == "u_test"
+    assert captured["messages"]  # recent_messages 已定义并传给 Agent

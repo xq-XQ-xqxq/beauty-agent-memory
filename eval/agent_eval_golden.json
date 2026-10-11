@@ -1,0 +1,241 @@
+{
+  "description": "美妆电商客服 Agent 黄金评估集（15 条）：覆盖产品咨询/成分安全/售后工单/政策咨询/历史查询/情绪投诉/闲聊/多轮。",
+  "scoring": {
+    "expected_tools": "必须执行的工具集合（子集匹配，允许额外的合理工具）",
+    "forbidden_tools": "禁止执行的工具（主要用于验证不应误建工单的场景）",
+    "expected_params": "参数断言：equals 精确相等 / contains 子串包含 / in 属于枚举集合",
+    "expected_focus_keywords": "service_focus 命中任意一个关键词即通过"
+  },
+  "cases": [
+    {
+      "case_id": "agent_01",
+      "scenario": "产品功效咨询，只需知识库检索，不应建工单",
+      "messages": [
+        {"role": "user", "content": "这款玻尿酸精华液具体有什么功效？适合什么肤质？"}
+      ],
+      "memories": [],
+      "expected_tools": ["search_knowledge_base"],
+      "forbidden_tools": ["create_aftersales_ticket_draft"],
+      "expected_params": [
+        {"tool": "search_knowledge_base", "arg": "doc_type", "equals": "product"}
+      ],
+      "expected_focus_keywords": ["产品", "精华", "咨询"],
+      "note": "普通产品咨询：选对检索工具 + doc_type=product"
+    },
+    {
+      "case_id": "agent_02",
+      "scenario": "成分安全问询且无肤质记忆，应先取画像再查成分",
+      "messages": [
+        {"role": "user", "content": "水杨酸我能用吗？敏感肌会不会刺激？"}
+      ],
+      "memories": [],
+      "expected_tools": ["get_user_profile", "check_ingredient_safety"],
+      "forbidden_tools": ["create_aftersales_ticket_draft"],
+      "expected_params": [
+        {"tool": "check_ingredient_safety", "arg": "ingredient_name", "contains": "水杨酸"}
+      ],
+      "expected_focus_keywords": ["成分", "安全", "刺激"],
+      "note": "无肤质时必须先 get_user_profile，再 check_ingredient_safety"
+    },
+    {
+      "case_id": "agent_03",
+      "scenario": "成分安全问询且已有肤质记忆",
+      "messages": [
+        {"role": "user", "content": "烟酰胺我这个皮肤能用吗？"}
+      ],
+      "memories": [
+        {"id": "m1", "metadata": {"memory_key": "body.skin_type"}}
+      ],
+      "expected_tools": ["check_ingredient_safety"],
+      "forbidden_tools": ["create_aftersales_ticket_draft"],
+      "expected_params": [
+        {"tool": "check_ingredient_safety", "arg": "ingredient_name", "contains": "烟酰胺"}
+      ],
+      "expected_focus_keywords": ["成分", "安全"],
+      "note": "memory_index 已含 body.skin_type，允许额外调 get_user_profile 核对"
+    },
+    {
+      "case_id": "agent_04",
+      "scenario": "明确提出退货且有使用后症状，应建退货工单草稿",
+      "messages": [
+        {"role": "user", "content": "我要退货，昨天用了你们的水杨酸面膜之后脸一直泛红"}
+      ],
+      "memories": [],
+      "expected_tools": ["create_aftersales_ticket_draft"],
+      "forbidden_tools": [],
+      "expected_params": [
+        {"tool": "create_aftersales_ticket_draft", "arg": "ticket_type", "equals": "return"}
+      ],
+      "expected_focus_keywords": ["退货"],
+      "note": "写操作护栏场景：工单必须是 pending 草稿，等待人工审核"
+    },
+    {
+      "case_id": "agent_05",
+      "scenario": "仅咨询退换政策，无明确诉求，绝不能建工单",
+      "messages": [
+        {"role": "user", "content": "你们家支持七天无理由退换吗？"}
+      ],
+      "memories": [],
+      "expected_tools": ["search_knowledge_base"],
+      "forbidden_tools": ["create_aftersales_ticket_draft"],
+      "expected_params": [
+        {"tool": "search_knowledge_base", "arg": "doc_type", "equals": "policy"}
+      ],
+      "expected_focus_keywords": ["政策", "退换", "规则"],
+      "note": "高频误判点：问政策 ≠ 要退货"
+    },
+    {
+      "case_id": "agent_06",
+      "scenario": "明确换货诉求",
+      "messages": [
+        {"role": "user", "content": "这瓶神经酰胺面霜我没拆封，想换一瓶，可以吗？"}
+      ],
+      "memories": [],
+      "expected_tools": ["create_aftersales_ticket_draft"],
+      "forbidden_tools": [],
+      "expected_params": [
+        {"tool": "create_aftersales_ticket_draft", "arg": "ticket_type", "equals": "exchange"}
+      ],
+      "expected_focus_keywords": ["换货"],
+      "note": "ticket_type 枚举必须正确识别为 exchange"
+    },
+    {
+      "case_id": "agent_07",
+      "scenario": "明确退款诉求",
+      "messages": [
+        {"role": "user", "content": "这个订单我不想要了，直接给我退款吧"}
+      ],
+      "memories": [],
+      "expected_tools": ["create_aftersales_ticket_draft"],
+      "forbidden_tools": [],
+      "expected_params": [
+        {"tool": "create_aftersales_ticket_draft", "arg": "ticket_type", "equals": "refund"}
+      ],
+      "expected_focus_keywords": ["退款"],
+      "note": "ticket_type=refund"
+    },
+    {
+      "case_id": "agent_08",
+      "scenario": "使用后严重过敏投诉，应建过敏工单，优先级 urgent",
+      "messages": [
+        {"role": "user", "content": "用了你们的产品脸都烂了，过敏很严重，又红又痒，我要投诉"}
+      ],
+      "memories": [],
+      "expected_tools": ["create_aftersales_ticket_draft"],
+      "forbidden_tools": [],
+      "expected_params": [
+        {"tool": "create_aftersales_ticket_draft", "arg": "ticket_type", "equals": "allergy_case"}
+      ],
+      "expected_focus_keywords": ["过敏"],
+      "note": "过敏投诉与普通成分咨询必须区分开"
+    },
+    {
+      "case_id": "agent_09",
+      "scenario": "查询历史投诉记录，应走事件流，不应建工单",
+      "messages": [
+        {"role": "user", "content": "我上个月是不是在你们这投诉过一次？帮我查一下记录"}
+      ],
+      "memories": [],
+      "expected_tools": ["get_user_events"],
+      "forbidden_tools": ["create_aftersales_ticket_draft"],
+      "expected_params": [
+        {"tool": "get_user_events", "arg": "event_type", "in": ["dissatisfaction.escalation_intent", "dissatisfaction.reason"]}
+      ],
+      "expected_focus_keywords": ["投诉", "记录", "历史"],
+      "note": "查历史 ≠ 发起新售后"
+    },
+    {
+      "case_id": "agent_10",
+      "scenario": "纯闲聊，不应调用任何工具",
+      "messages": [
+        {"role": "user", "content": "你好呀，今天天气真不错"}
+      ],
+      "memories": [],
+      "expected_tools": [],
+      "forbidden_tools": ["create_aftersales_ticket_draft"],
+      "expected_params": [],
+      "expected_focus_keywords": ["问候", "你好", "闲聊"],
+      "note": "闲聊直答：工具调用精确率的反向用例"
+    },
+    {
+      "case_id": "agent_11",
+      "scenario": "多轮：先问产品有没有货，再追问成分安全",
+      "messages": [
+        {"role": "user", "content": "水杨酸清洁面膜有货吗？"},
+        {"role": "assistant", "content": "有的哦，这款目前库存充足~"},
+        {"role": "user", "content": "那它成分安全吗，我敏感肌"}
+      ],
+      "memories": [],
+      "expected_tools": ["search_knowledge_base", "check_ingredient_safety"],
+      "forbidden_tools": ["create_aftersales_ticket_draft"],
+      "expected_params": [
+        {"tool": "check_ingredient_safety", "arg": "ingredient_name", "contains": "水杨酸"}
+      ],
+      "expected_focus_keywords": ["成分", "安全"],
+      "note": "多轮对话中要从历史消息提取成分实体"
+    },
+    {
+      "case_id": "agent_12",
+      "scenario": "多轮：先问政策，随后明确决定退货（先查政策后建工单）",
+      "messages": [
+        {"role": "user", "content": "你们退换货规则是什么样的？"},
+        {"role": "assistant", "content": "支持7天无理由退换，商品不影响二次销售即可~"},
+        {"role": "user", "content": "那帮我退了吧，这产品不适合我"}
+      ],
+      "memories": [],
+      "expected_tools": ["search_knowledge_base", "create_aftersales_ticket_draft"],
+      "forbidden_tools": [],
+      "expected_params": [
+        {"tool": "search_knowledge_base", "arg": "doc_type", "equals": "policy"},
+        {"tool": "create_aftersales_ticket_draft", "arg": "ticket_type", "equals": "return"}
+      ],
+      "expected_focus_keywords": ["退货"],
+      "note": "同一 run 内串联只读检索与写草稿"
+    },
+    {
+      "case_id": "agent_13",
+      "scenario": "情绪激动的抱怨但未提任何售后诉求，先查历史避免重复冲突",
+      "messages": [
+        {"role": "user", "content": "什么垃圾产品，用着搓泥，气死我了"}
+      ],
+      "memories": [],
+      "expected_tools": ["get_user_events"],
+      "forbidden_tools": ["create_aftersales_ticket_draft"],
+      "expected_params": [
+        {"tool": "get_user_events", "arg": "user_id", "contains": "eval"}
+      ],
+      "expected_focus_keywords": ["情绪", "不满", "投诉"],
+      "note": "抱怨不等于退货诉求；工单护栏反向用例"
+    },
+    {
+      "case_id": "agent_14",
+      "scenario": "干皮求保湿产品推荐，检索产品库即可",
+      "messages": [
+        {"role": "user", "content": "我是干皮，冬天脸上起皮，想要一款保湿面霜，有推荐吗"}
+      ],
+      "memories": [],
+      "expected_tools": ["search_knowledge_base"],
+      "forbidden_tools": ["create_aftersales_ticket_draft"],
+      "expected_params": [
+        {"tool": "search_knowledge_base", "arg": "doc_type", "equals": "product"}
+      ],
+      "expected_focus_keywords": ["推荐", "产品", "面霜"],
+      "note": "推荐类咨询：检索而非工单"
+    },
+    {
+      "case_id": "agent_15",
+      "scenario": "询问产品中酒精含量并自述过敏，但只是安全咨询不是投诉",
+      "messages": [
+        {"role": "user", "content": "这款精华里面酒精含量高吗？我对酒精过敏，怕刺激"}
+      ],
+      "memories": [],
+      "expected_tools": ["check_ingredient_safety", "search_knowledge_base"],
+      "forbidden_tools": ["create_aftersales_ticket_draft"],
+      "expected_params": [
+        {"tool": "check_ingredient_safety", "arg": "ingredient_name", "contains": "酒精"}
+      ],
+      "expected_focus_keywords": ["成分", "酒精", "安全"],
+      "note": "自述过敏体质但未投诉使用后问题，只查成分，禁止误建过敏工单"
+    }
+  ]
+}

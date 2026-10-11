@@ -8,3 +8,6 @@ data/
 *.log
 .DS_Store
 Thumbs.db
+.workbuddy/
+Mem0主办方数据批量测试_新方案_pe_v*.md
+项目简历_*.md
